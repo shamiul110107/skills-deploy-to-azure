@@ -6,6 +6,7 @@ on:
 
 env:
   IMAGE_REGISTRY_URL: ghcr.io
+
   ###############################################
   ### Replace <username> with GitHub username ###
   ###############################################
@@ -21,13 +22,16 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 16
+
       - name: npm install and build webpack
         run: |
           npm install
           npm run build
+
       - uses: actions/upload-artifact@v4
         with:
           name: webpack artifacts
@@ -37,6 +41,7 @@ jobs:
     runs-on: ubuntu-latest
     needs: build
     name: Build image and store in GitHub Container Registry
+
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,19 +51,23 @@ jobs:
         with:
           name: webpack artifacts
           path: public
+
       - name: Debug GHCR token
         env:
           CR_PAT: ${{ secrets.CR_PAT }}
         run: |
-            echo "Token exists: $([[ -n "$CR_PAT" ]] && echo YES || echo NO)"
-            echo "Token length: ${#CR_PAT}"
-            echo "Token SHA256:"
-            printf '%s' "$CR_PAT" | sha256sum
-            echo "GitHub token scopes:"
-            curl -sI \
-                -H "Authorization: Bearer $CR_PAT" \
-                https://api.github.com/user \
-                | grep -i "x-oauth-scopes" || true
+          echo "Token exists: $([[ -n "$CR_PAT" ]] && echo YES || echo NO)"
+          echo "Token length: ${#CR_PAT}"
+
+          echo "Token SHA256:"
+          printf '%s' "$CR_PAT" | sha256sum
+
+          echo "GitHub token scopes:"
+          curl -sI \
+            -H "Authorization: Bearer $CR_PAT" \
+            https://api.github.com/user \
+            | grep -i "x-oauth-scopes" || true
+
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
@@ -70,7 +79,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{env.IMAGE_REGISTRY_URL}}/${{ github.repository }}/${{env.DOCKER_IMAGE_NAME}}
+          images: ${{ env.IMAGE_REGISTRY_URL }}/${{ github.repository }}/${{ env.DOCKER_IMAGE_NAME }}
           tags: |
             type=sha,format=long,prefix=
 
@@ -86,25 +95,39 @@ jobs:
     runs-on: ubuntu-latest
     needs: Build-Docker-Image
     name: Deploy app container to Azure
+
     steps:
-      - name: "Login via Azure CLI"
+      - name: Login via Azure CLI
         uses: azure/login@v2
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      - uses: azure/docker-login@v1
-        with:
-          login-server: ${{env.IMAGE_REGISTRY_URL}}
-          username: ${{ github.actor }}
-          password: ${{ secrets.CR_PAT }}
+      - name: Check Azure Account
+        run: |
+          echo "Azure account:"
+          az account show \
+            --query "{subscription:name, subscriptionId:id, tenantId:tenantId}" \
+            -o table
+
       - name: Check Azure Web App
         run: |
-            az webapp list --query "[].{name:name, resourceGroup:resourceGroup, location:location}" -o table
+          echo "Available Web Apps:"
+          az webapp list \
+            --query "[].{name:name, resourceGroup:resourceGroup, location:location}" \
+            -o table
+
+      - name: Login to GHCR
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ env.IMAGE_REGISTRY_URL }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.CR_PAT }}
+
       - name: Deploy web app container
         uses: azure/webapps-deploy@v3
         with:
-          app-name: ${{env.AZURE_WEBAPP_NAME}}
-          images: ${{env.IMAGE_REGISTRY_URL}}/${{ github.repository }}/${{env.DOCKER_IMAGE_NAME}}:${{ github.sha }}
+          app-name: ${{ env.AZURE_WEBAPP_NAME }}
+          images: ${{ env.IMAGE_REGISTRY_URL }}/${{ github.repository }}/${{ env.DOCKER_IMAGE_NAME }}:${{ github.sha }}
 
       - name: Azure logout via Azure CLI
         uses: azure/CLI@v2
