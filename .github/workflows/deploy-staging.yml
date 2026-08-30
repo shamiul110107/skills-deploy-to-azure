@@ -97,7 +97,9 @@ jobs:
           login-server: ${{env.IMAGE_REGISTRY_URL}}
           username: ${{ github.actor }}
           password: ${{ secrets.CR_PAT }}
-
+      - name: Check Azure Web App
+        run: |
+            az webapp list --query "[].{name:name, resourceGroup:resourceGroup, location:location}" -o table
       - name: Deploy web app container
         uses: azure/webapps-deploy@v3
         with:
