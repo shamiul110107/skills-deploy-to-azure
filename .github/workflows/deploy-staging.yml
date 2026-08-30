@@ -46,7 +46,19 @@ jobs:
         with:
           name: webpack artifacts
           path: public
-
+      - name: Debug GHCR token
+        env:
+          CR_PAT: ${{ secrets.CR_PAT }}
+        run: |
+            echo "Token exists: $([[ -n "$CR_PAT" ]] && echo YES || echo NO)"
+            echo "Token length: ${#CR_PAT}"
+            echo "Token SHA256:"
+            printf '%s' "$CR_PAT" | sha256sum
+            echo "GitHub token scopes:"
+            curl -sI \
+                -H "Authorization: Bearer $CR_PAT" \
+                https://api.github.com/user \
+                | grep -i "x-oauth-scopes" || true
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
